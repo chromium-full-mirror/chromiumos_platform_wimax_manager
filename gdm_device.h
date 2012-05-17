@@ -9,6 +9,8 @@ extern "C" {
 #include <gct/gctapi.h>
 }  // extern "C"
 
+#include <glib.h>
+
 #include <string>
 
 #include <base/basictypes.h>
@@ -28,7 +30,9 @@ class GdmDevice : public Device {
 
   virtual bool Enable();
   virtual bool Disable();
-  virtual bool Connect();
+  virtual bool ScanNetworks();
+  virtual bool Connect(const Network &network,
+                       const base::DictionaryValue &parameters);
   virtual bool Disconnect();
 
  private:
@@ -36,6 +40,9 @@ class GdmDevice : public Device {
 
   bool Open();
   bool Close();
+
+  bool ConstructEAPParameters(const base::DictionaryValue &connect_parameters,
+                              GCT_API_EAP_PARAM *eap_parameters);
 
   void set_mac_address(const uint8 mac_address[6]);
   void set_status(WIMAX_API_DEVICE_STATUS status) { status_ = status; }
@@ -49,6 +56,7 @@ class GdmDevice : public Device {
   WIMAX_API_DEVICE_STATUS status_;
   WIMAX_API_CONNECTION_PROGRESS_INFO connection_progress_;
   uint8 mac_address_[6];
+  guint scan_timeout_id_;
 
   DISALLOW_COPY_AND_ASSIGN(GdmDevice);
 };

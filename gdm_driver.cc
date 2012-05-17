@@ -79,16 +79,29 @@ string GetConnectionProgressDescription(
   }
 }
 
-string GetNetworkTypeDescription(WIMAX_API_NETWORK_TYPE network_type) {
+string GetNetworkTypeDescription(NetworkType network_type) {
   switch (network_type) {
-    case WIMAX_API_HOME:
+    case kNetworkHome:
       return "Home";
-    case WIMAX_API_PARTNER:
+    case kNetworkPartner:
       return "Partner";
-    case WIMAX_API_ROAMING_PARTNER:
+    case kNetworkRoamingParnter:
       return "Roaming partner";
     default:
       return "Unknown";
+  }
+}
+
+NetworkType ConvertNetworkType(WIMAX_API_NETWORK_TYPE network_type) {
+  switch (network_type) {
+    case WIMAX_API_HOME:
+      return kNetworkHome;
+    case WIMAX_API_PARTNER:
+      return kNetworkPartner;
+    case WIMAX_API_ROAMING_PARTNER:
+      return kNetworkRoamingParnter;
+    default:
+      return kNetworkUnknown;
   }
 }
 
@@ -245,29 +258,10 @@ bool GdmDriver::GetDeviceStatus(GdmDevice *device) {
   return true;
 }
 
-bool GdmDriver::SetDeviceEAPParameters(GdmDevice *device) {
+bool GdmDriver::SetDeviceEAPParameters(GdmDevice *device,
+                                       GCT_API_EAP_PARAM *eap_parameters) {
   GDEV_ID device_id = GetDeviceId(device);
-
-  GCT_API_EAP_PARAM eap_param;
-  memset(&eap_param, 0, sizeof(eap_param));
-  eap_param.type = GCT_WIMAX_EAP_TLS;
-  eap_param.fragSize = 1300;
-  eap_param.useNvramParam = 1;
-  // Default values for:
-  // eap_param.useDelimiter = 0;
-  // eap_param.devCertNULL = 0;
-  // eap_param.caCertNULL = 0;
-  // eap_param.disableResumption = 0;
-  // eap_param.cr801Enable = 0;
-  // eap_param.disableSessionTicket = 0;
-  // eap_param.userId[WIMAX_EAP_STR_LEN];
-  // eap_param.userIdPwd[WIMAX_EAP_STR_LEN];
-  // eap_param.anonymousId[WIMAX_EAP_STR_LEN];
-  // eap_param.privateKeyPwd[WIMAX_EAP_STR_LEN];
-  // eap_param.decoration[WIMAX_EAP_DECO_LEN];
-  eap_param.logEnable = 1;
-
-  GCT_API_RET ret = GAPI_SetEap(&device_id, &eap_param);
+  GCT_API_RET ret = GAPI_SetEap(&device_id, eap_parameters);
   return ret == GCT_API_RET_SUCCESS;
 }
 
@@ -285,7 +279,7 @@ bool GdmDriver::AutoSelectProfileForDevice(GdmDevice *device) {
     string profile_name;
     if (ConvertWideCharacterArrayToUTF8String(profile_list[i].profileName,
                                               &profile_name)) {
-      LOG(INFO) << base::StringPrintf("Found profile '%s': id = %d\n",
+      LOG(INFO) << base::StringPrintf("Found profile '%s': id = %d",
                 profile_name.c_str(),
                 profile_list[i].profileID);
     }
@@ -312,7 +306,7 @@ bool GdmDriver::PowerOffDeviceRF(GdmDevice *device) {
 }
 
 bool GdmDriver::GetNetworksForDevice(GdmDevice *device,
-                                     vector<Network *> *networks) {
+                                     vector<NetworkRefPtr> *networks) {
   CHECK(networks);
 
   GDEV_ID device_id = GetDeviceId(device);
@@ -346,15 +340,16 @@ bool GdmDriver::GetNetworksForDevice(GdmDevice *device,
       continue;
     }
 
+    NetworkType network_type = ConvertNetworkType(network_list[i].networkType);
+    int network_cinr = network_list[i].CINR + Network::kMinCINR;
+    int network_rssi = network_list[i].RSSI + Network::kMinRSSI;
     LOG(INFO) << base::StringPrintf(
-        "Found network '%s': type = '%s', id = %08x, RSSI = %d, CINR = %d\n",
-        network_name.c_str(),
-        GetNetworkTypeDescription(network_list[i].networkType).c_str(),
-        network_id,
-        network_list[i].RSSI - 123,
-        network_list[i].CINR - 10);
+        "Found network '%s': type = '%s', id = %08x, CINR = %d, RSSI = %d",
+        network_name.c_str(), GetNetworkTypeDescription(network_type).c_str(),
+        network_id, network_cinr, network_rssi);
 
-    Network *network = new(std::nothrow) Network(network_id, network_name);
+    NetworkRefPtr network = new(std::nothrow) Network(
+        network_id, network_name, network_type, network_cinr, network_rssi);
     CHECK(network);
     networks->push_back(network);
   }
@@ -362,10 +357,10 @@ bool GdmDriver::GetNetworksForDevice(GdmDevice *device,
 }
 
 bool GdmDriver::ConnectDeviceToNetwork(GdmDevice *device,
-                                       const Network *network) {
+                                       const Network &network) {
   GDEV_ID device_id = GetDeviceId(device);
   wstring network_name_wcs;
-  if (!UTF8ToWide(network->name().c_str(), network->name().size(),
+  if (!UTF8ToWide(network.name().c_str(), network.name().size(),
                   &network_name_wcs)) {
     return false;
   }

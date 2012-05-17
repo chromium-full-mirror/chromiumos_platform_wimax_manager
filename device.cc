@@ -12,15 +12,24 @@ using std::string;
 
 namespace wimax_manager {
 
+namespace {
+
+// Default time interval, in seconds, between network scans.
+// TODO(benchan): Perform some measurements and fine tune this value.
+const int kDefaultScanIntervalInSeconds = 5;
+
+}  // namespace
+
 Device::Device(uint8 index, const string &name)
-    : index_(index), name_(name) {
+    : index_(index), name_(name),
+      scan_interval_(kDefaultScanIntervalInSeconds) {
 }
 
 Device::~Device() {
 }
 
-void Device::set_adaptor(DeviceDBusAdaptor *adaptor) {
-  adaptor_.reset(adaptor);
+void Device::UpdateNetworks() {
+  dbus_adaptor()->UpdateNetworks();
 }
 
 }  // namespace wimax_manager
