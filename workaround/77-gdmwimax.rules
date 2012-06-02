@@ -1,0 +1,2 @@
+# Enable shill if a GDM72xx WiMAX module is detected
+ACTION=="add|change", SUBSYSTEMS=="usb", ATTRS{idVendor}=="1076", ATTRS{idProduct}=="7e0*|7f0*", RUN+="/usr/sbin/ensure_shill_enabled"

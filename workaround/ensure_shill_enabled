@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# Copyright (c) 2012 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+logger -t wimax "GCT WiMAX device found."
+
+if [ -f /home/chronos/.enable_shill ]; then
+  exit 0
+fi
+
+if [ -f /home/chronos/.disable_shill ]; then
+  logger -t wimax "shill is explicitly disabled."
+  exit 0
+fi
+
+# Create the .enable_shill file to ensure the shill is run by the flimflam
+# upstart job.
+touch /home/chronos/.enable_shill
+logger -t wimax "Enable shill."
+
+# If flimflam is already running, restart the flimflam upstart job to
+# run shill instead. Otherwise, shill is already running or will be run
+# by upstart at a later moment.
+if pgrep flimflam >/dev/null 2>&1; then
+  if status flimflam >/dev/null 2>&1; then
+    logger -t wimax "Switching from flimflam to shill."
+    restart flimflam
+  else
+    logger -t wimax "flimflam is running but not launched by upstart! \
+Defer switching to shill until reboot."
+  fi
+fi
