@@ -6,6 +6,14 @@
 
 logger -t wimax "GCT WiMAX device found."
 
+# /home/chronos may not be mounted when this script is invoked at the early
+# stage of boot. /home/chronos should be available during the subsequent
+# invocations of this script due to udev change events on the WiMAX device.
+if [ ! -e /home/chronos ]; then
+  logger -t wimax "/home/chronos does not exist. Skip creating .enable_shill"
+  exit 0
+fi
+
 if [ -f /home/chronos/.enable_shill ]; then
   exit 0
 fi
